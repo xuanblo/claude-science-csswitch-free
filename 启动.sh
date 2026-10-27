@@ -7,12 +7,24 @@ ROOT=$(CDPATH= cd -P "$(dirname "$0")" && pwd)
 export CSSWITCH_HOME
 mkdir -p "$CSSWITCH_HOME"
 
+PY=""
 if [ -n "${CSSWITCH_PYTHON:-}" ]; then
     PY=$CSSWITCH_PYTHON
-elif command -v python3 >/dev/null 2>&1; then
-    PY=$(command -v python3)
 else
-    printf '%s\n' '[X] Python 3 not found. Install Python 3.9 or newer first.' >&2
+    for candidate in \
+        "$ROOT/runtime/python/bin/python3" \
+        "$ROOT/runtime/python/bin/python"; do
+        if [ -x "$candidate" ]; then
+            PY=$candidate
+            break
+        fi
+    done
+fi
+
+if [ -z "$PY" ] && command -v python3 >/dev/null 2>&1; then
+    PY=$(command -v python3)
+elif [ -z "$PY" ]; then
+    printf '%s\n' '[X] Python 3 not found. Install Python 3.9 or newer, or put a portable runtime under runtime/python/bin.' >&2
     exit 1
 fi
 

@@ -61,7 +61,7 @@ Linux 必须分别安装对应系统的官方 Science，仓库里的 Windows `.e
 ### 1. 准备环境
 
 - macOS 或 Linux 的原生 Claude Science，安装后确认 `claude-science --version` 可用；
-- Python 3.9 或更新版本；
+- Python 3.9 或更新版本，也可把便携 Python 放在 `runtime/python/bin/`；
 - Linux 安全沙箱还需要 `bubblewrap`（命令名 `bwrap`）与 `socat`。
   Ubuntu/Debian 可一次安装系统依赖：
 
@@ -95,16 +95,51 @@ Science 即可。命令行示例：
 
 macOS / Linux 数据默认位于 `~/.csswitch-win`（保留历史目录名以兼容旧配置），
 可用 `export CSSWITCH_HOME=/你的/数据目录` 改址。配置、日志与沙箱都在该目录下。
-Windows 便携版的 `runtime/python` 和 `claude-science.exe` 在 Unix 上不会被使用。
+`启动.sh` 会优先使用 `runtime/python/bin/python3` 或 `runtime/python/bin/python`；
+没有便携 Python 时才回退到 `CSSWITCH_PYTHON` 或系统 `python3`。Windows
+`runtime/python` 与 `claude-science.exe` 不会被 Unix 启动器误用。
+
+---
+
+## `runtime/` 运行时目录
+
+源码仓库会跟踪以下占位说明，但不会把 Python、Claude Science 和平台二进制提交到
+Git：
+
+```text
+runtime/README.md
+runtime/claude-science/README.md
+runtime/python/README.md
+```
+
+如果你拿到的是**完整便携发行包**，直接双击 `便携启动.bat`（Windows）或运行
+`./启动.sh`（macOS / Linux）即可。
+
+如果你只拿到**Git 源码仓库**，请按 `runtime/README.md` 下载当前平台的原生
+Claude Science，并准备便携 Python：
+
+```text
+Windows：
+  runtime\python\python.exe
+  runtime\claude-science\claude-science.exe
+
+macOS / Linux：
+  runtime/python/bin/python3
+  runtime/claude-science/claude-science
+```
+
+Claude Science 放入 `runtime/claude-science/` 后，本工具会以最高优先级自动发现它；
+不需要再安装系统级 Science，也不需要手动修改 `science_bin`。
 
 ---
 
 ## Windows 安装与快速开始
 
-**无需安装任何东西**：整个文件夹拷到任意 Windows 电脑（U 盘、网盘、微信传文件夹
-都行），双击 **`便携启动.bat`** 即可。内置 `runtime\python`（Python 3.11 +
+**完整便携包无需安装任何东西**：整个文件夹拷到任意 Windows 电脑（U 盘、网盘、微信传文件夹
+都行），双击 **`便携启动.bat`** 即可。完整便携包内置 `runtime\python`（Python 3.11 +
 cryptography）与 `runtime\claude-science\claude-science.exe`，不依赖系统 Python，
-也不依赖系统装过 Claude Science。
+也不依赖系统装过 Claude Science。Git 源码仓库只保留这些目录的占位说明，二进制需按
+上文放入或通过完整便携发行包获得。
 
 ### 方式一：图形界面（推荐）
 

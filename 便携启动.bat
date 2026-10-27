@@ -87,6 +87,7 @@ echo       %PY%
 echo.
 echo   The portable runtime is incomplete. Re-copy the whole folder,
 echo   or keep the "runtime" subfolder next to this .bat file.
+echo   See runtime\python\README.md for setup instructions.
 set "RC=1"
 
 :finish

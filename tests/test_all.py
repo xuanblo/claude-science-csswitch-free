@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SELFTEST = ROOT / "tests" / "selftest.py"
 
 # 与 selftest.py 的结尾输出一致；改动那边记得同步这里
-EXPECTED = "结果: 187 通过, 0 失败"
+EXPECTED = "结果: 190 通过, 0 失败"
 
 
 def _run_selftest():
@@ -35,7 +35,7 @@ def _run_selftest():
 
 
 def test_selftest_all_pass():
-    """全部 187 项断言必须通过。失败时把完整输出贴进 pytest 报告。"""
+    """全部 190 项断言必须通过。失败时把完整输出贴进 pytest 报告。"""
     code, out = _run_selftest()
     assert EXPECTED in out, (
         f"自测未全部通过（期望输出包含 {EXPECTED!r}）。\n"

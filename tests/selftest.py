@@ -1036,6 +1036,25 @@ def test_cross_platform():
           "## macOS / Linux 安装与快速开始" in
           (ROOT / "README.md").read_text(encoding="utf-8"))
 
+    runtime_readmes = (
+        ROOT / "runtime" / "README.md",
+        ROOT / "runtime" / "claude-science" / "README.md",
+        ROOT / "runtime" / "python" / "README.md",
+    )
+    missing_runtime_docs = [
+        str(p.relative_to(ROOT)) for p in runtime_readmes if not p.is_file()
+    ]
+    check("runtime 占位说明文件齐全",
+          not missing_runtime_docs, missing_runtime_docs)
+    sh_text = raw.decode("utf-8", errors="replace")
+    check("Unix 启动器优先发现 runtime 便携 Python",
+          "runtime/python/bin/python3" in sh_text
+          and "runtime/python/bin/python" in sh_text)
+    readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
+    check("README 说明 runtime 仓库只带占位文档",
+          "## `runtime/` 运行时目录" in readme_text
+          and "不会把 Python、Claude Science 和平台二进制提交到" in readme_text)
+
 
 def main():
     print("CSswitch 离线自测")

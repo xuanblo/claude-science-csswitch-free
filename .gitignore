@@ -37,10 +37,17 @@ venv/
 env/
 ENV/
 
-# ---- 便携版运行时与数据（体积大 / 含密钥，不入库）----
-# runtime/ 内是随包分发的 Python 与 Claude Science 可执行文件（约 236MB），
-# 由 便携启动.bat 自动使用；要用便携版请整目录拷贝，不要靠 git 拉取。
-runtime/
+# ---- 便携版运行时 ----
+# 仓库跟踪 runtime/ 与下级 README 占位说明，方便用户知道把原生运行时放哪里；
+# Python、Claude Science 可执行文件仍不入库，避免大文件和跨平台二进制混用。
+runtime/*
+!runtime/README.md
+!runtime/claude-science/
+runtime/claude-science/*
+!runtime/claude-science/README.md
+!runtime/python/
+runtime/python/*
+!runtime/python/README.md
 # 便携模式的配置 / 沙箱 / 日志根目录（含明文 API Key，与上面同理）
 .data/
 
