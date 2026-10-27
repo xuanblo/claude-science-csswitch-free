@@ -1,0 +1,11 @@
+# CSswitch-Win 精确版本锁（可重现安装）
+#
+# 用途：需要与本项目验证过的环境完全一致时使用（CI、问题复现）。
+#   pip install -r requirements-lock.txt
+#
+# 日常使用请用 requirements.txt（带范围约束，便于安全更新）：
+#   pip install -r requirements.txt
+#
+# 验证基准：Python 3.13.12 (Windows) + cryptography 46.0.7
+# 对应 Claude Science 0.1.61
+cryptography==46.0.7

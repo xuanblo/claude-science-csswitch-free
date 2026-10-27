@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cswitch-win"
+version = "1.1.0"
+description = "Windows / macOS / Linux 版 Claude Science 第三方模型切换工具"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "CSswitch-Win Contributors" }]
+keywords = ["claude", "anthropic", "proxy", "windows", "macos", "linux", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Utilities",
+]
+dependencies = ["cryptography>=41.0,<47"]
+
+[project.urls]
+Homepage = "https://github.com/csswitch-win/csswitch-win"
+Issues = "https://github.com/csswitch-win/csswitch-win/issues"
+Security = "https://github.com/csswitch-win/csswitch-win/security/advisories/new"
+
+[project.scripts]
+csx = "csswitch.cli:main"
+
+[tool.setuptools]
+packages = ["csswitch"]
+
+# ---------------------------------------------------------------------------
+# ruff：pip install ruff && ruff check .
+# 规则集刻意保守：只抓真实缺陷（未用变量、未定义名、裸 except），
+# 不做风格强制，避免与社区 fork 的格式偏好冲突。
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "F",    # pyflakes：未用导入 / 未定义名 / 重复键
+    "E",    # pycodestyle 错误
+    "W",    # pycodestyle 警告
+    "B",    # bugbear：常见逻辑陷阱
+    "BLE",  # blind except：不裸 except Exception
+    "S",    # bandit：安全
+]
+ignore = [
+    "E501",    # 行长由 formatter 管
+    "S101",    # assert 在自测套件里是正常的
+    "B008",    # 函数调用做默认值（argparse 惯用法）
+    "S603",    # subprocess 调用（本项目的核心就是起进程）
+    "S607",    # 以程序名调用 subprocess（claude-science 就是这么找到的）
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "BLE", "B", "E402"]
+"csswitch/server.py" = ["BLE"]   # HTTP 层必须兜住所有异常，否则连接悬挂
+"csswitch/upstream.py" = ["BLE"] # 传输层统一重试逻辑
+
+[tool.ruff.lint.flake8-bugbear]
+# B008 之外，容忍 os.stat 等已知安全的调用
+extend-immutable-calls = ["os.environ.get", "os.getenv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

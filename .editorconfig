@@ -1,0 +1,30 @@
+# EditorConfig：跨编辑器统一格式
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Windows 批处理必须是 CRLF，否则 cmd.exe 可能解析异常
+[*.bat]
+end_of_line = crlf
+
+# Unix shebang 与 shell 语法要求 LF
+[*.sh]
+end_of_line = lf
+
+# Markdown 行尾双空格是硬换行语法，不可裁剪
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{yml,yaml,json,toml}]
+indent_size = 2
+
+[Makefile]
+indent_style = tab

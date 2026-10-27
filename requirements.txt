@@ -1,0 +1,10 @@
+# CSswitch-Win 运行依赖
+#
+# 唯一第三方依赖：虚拟登录令牌需要 HKDF-SHA256 + AES-256-GCM，
+# 两者标准库均未提供（hashlib 直到 3.14 才有 HKDF，且不覆盖 AES-GCM）。
+# 代理服务器本体、CLI、协议翻译、CONNECT 隧道全部是纯标准库实现。
+#
+# 上界原因：cryptography 是安全敏感库，43 -> 44 -> 46 之间有多次底层
+# OpenSSL 绑定调整，无上界安装可能在未来版本直接导入失败。
+# 放宽上界前请先跑 `python tests/selftest.py`（A/B 段即 HKDF 与加解密对拍）。
+cryptography>=41.0,<47

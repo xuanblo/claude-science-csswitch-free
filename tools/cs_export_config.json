@@ -1,0 +1,10 @@
+{
+  "data_dir": "",
+  "out_dir": "D:/Paper/articles",
+  "skip_projects": ["proj_example"],
+  "attachments_subdir": "attachments",
+  "include_all_artifacts": true,
+  "rewrite_media_links": true,
+  "write_index": true,
+  "max_title_len": 80
+}

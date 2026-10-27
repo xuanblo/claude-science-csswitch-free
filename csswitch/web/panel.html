@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSswitch-Win 控制台</title>
+<script>
+/* 首屏就定主题，避免暗色先闪一下再变亮。
+   data-theme 由脚本维护：auto 时跟随系统，否则用用户选择。 */
+(function () {
+  try {
+    var m = localStorage.getItem('csx_theme') || 'auto';
+    var light = window.matchMedia('(prefers-color-scheme: light)').matches;
+    document.documentElement.dataset.theme =
+      m === 'auto' ? (light ? 'light' : 'dark') : m;
+  } catch (e) { /* 隐私模式下 localStorage 可能不可用 */ }
+})();
+</script>
+<style>
+  :root {
+    --bg: #12121c; --panel: #1c1c2a; --panel2: #23233a;
+    --line: #32324e; --txt: #e8e8f2; --dim: #9494b0;
+    --cyan: #35e0d0; --ok: #4ade80; --warn: #fbbf24; --err: #f87171;
+    --input-bg: #16162a; --tag-bg: #2a2a44;
+    --ok-line: #2d6a4a; --err-line: #7f3030;
+    --cur-bg: rgba(53,224,208,.07); --primary-bg: rgba(53,224,208,.14);
+  }
+  /* 亮色主题：手动选「亮」或系统偏好亮色（auto）时生效 */
+  :root[data-theme="light"] {
+    --bg: #f4f6fb; --panel: #ffffff; --panel2: #eef1f8;
+    --line: #d6dbe8; --txt: #1b1b28; --dim: #5d6478;
+    --cyan: #0d9488; --ok: #15803d; --warn: #b45309; --err: #dc2626;
+    --input-bg: #ffffff; --tag-bg: #e7ebf4;
+    --ok-line: #86efac; --err-line: #fca5a5;
+    --cur-bg: rgba(13,148,136,.08); --primary-bg: rgba(13,148,136,.12);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--txt);
+    font: 14px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  header {
+    padding: 18px 26px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  h1 { font-size: 17px; margin: 0; letter-spacing: .5px; }
+  h1 span { color: var(--cyan); }
+  .badge {
+    font-size: 12px; padding: 3px 10px; border-radius: 20px;
+    border: 1px solid var(--line); color: var(--dim);
+  }
+  .badge.on { color: var(--ok); border-color: var(--ok-line); }
+  /* 铺满视口宽度：大屏上不再在右侧留白 */
+  main { padding: 22px 26px 60px; }
+  /* 左右两栏：左栏放启动与配置（占 1.6 份），右栏放文件访问设置（至少 400px，随屏变宽） */
+  .cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(400px, 1fr); gap: 0 18px; align-items: start; }
+  .cols > .col { min-width: 0; }
+  @media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 18px 20px; margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 14px; margin: 0 0 14px; color: var(--cyan);
+    letter-spacing: 1px; display: flex; align-items: center; gap: 8px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  /* 列多，窄栏下让表格横向滚动，别把操作按钮挤到换行 */
+  .tablewrap { overflow-x: auto; }
+  .tablewrap table { min-width: 900px; }
+  /* 操作列：按钮挤在一起不折行，用 gap 排开 */
+  td.ops { white-space: nowrap; }
+  td.ops button { padding: 4px 9px; font-size: 12px; margin-right: 5px; }
+  td.ops button:last-child { margin-right: 0; }
+  th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; }
+  td.mono, .mono { font-family: Consolas, Menlo, monospace; font-size: 12px; }
+  tr.cur td { background: var(--cur-bg); }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+         background: var(--dim); margin-right: 6px; vertical-align: middle; }
+  .dot.on { background: var(--ok); } .dot.off { background: var(--err); }
+  button {
+    background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 13px; cursor: pointer; font-size: 13px;
+    font-family: inherit;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.primary { background: var(--primary-bg); border-color: var(--cyan); color: var(--cyan); }
+  button.danger:hover { border-color: var(--err); color: var(--err); }
+  input, select {
+    background: var(--input-bg); color: var(--txt); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 10px; font-size: 13px;
+    font-family: inherit; width: 100%;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--cyan); }
+  label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 5px; }
+  .grid { display: grid; gap: 14px; }
+  /* auto-fit：栏变窄时自动换列，而不是把内容挤成一团或撑出横向滚动条 */
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  @media (max-width: 720px) { .g2, .g3 { grid-template-columns: 1fr; } }
+  .gridwrap { min-width: 0; }
+  .row { display: flex; gap: 9px; align-items: flex-end; flex-wrap: wrap; }
+  .msg { margin-top: 12px; padding: 9px 12px; border-radius: 6px; font-size: 13px; display: none; }
+  .msg.ok { display: block; background: rgba(74,222,128,.1); border: 1px solid var(--ok-line); color: var(--ok); }
+  .msg.err { display: block; background: rgba(248,113,113,.1); border: 1px solid var(--err-line); color: var(--err); }
+  .hint { font-size: 12px; color: var(--dim); margin-top: 5px; }
+  .tag { font-size: 11px; padding: 2px 7px; border-radius: 4px; background: var(--tag-bg); color: var(--dim); }
+  footer { padding: 0 26px 30px; color: var(--dim); font-size: 12px; }
+  code { background: var(--input-bg); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  button:disabled { opacity: .55; cursor: default; }
+  button:disabled:hover { border-color: var(--line); color: var(--txt); }
+  .spin {
+    display: inline-block; width: 11px; height: 11px; vertical-align: -1px;
+    border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* 状态常驻条：不参与 toast 的 4s 自动隐藏，避免轮询重建造成闪烁 */
+  #sbMsg { animation: none !important; }
+  .row.busy { opacity: .6; pointer-events: none; }
+  /* 按钮不折行：窄栏里"停止"竖排很难看 */
+  .row button, .row select, .row input { white-space: nowrap; }
+  .row button { flex: 0 0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CSswitch 控制台</h1>
+  <span class="badge" id="bProxy">代理 —</span>
+  <span class="badge" id="bSandbox">沙箱 —</span>
+  <span class="badge" id="bUp">运行 —</span>
+  <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <button id="themeBtn" onclick="cycleTheme()"
+            title="跟随系统 / 亮 / 暗 循环切换">主题：自动</button>
+    <button onclick="refresh()">刷新</button>
+  </span>
+</header>
+
+<main>
+  <div class="cols">
+   <div class="col">
+  <!-- 一键启动 -->
+  <div class="card">
+    <h2>Claude Science<span class="tag" id="sbState">—</span></h2>
+    <div class="gridwrap">
+    <div class="grid g3">
+      <div>
+        <label>沙箱端口</label>
+        <input id="sbPort" type="number" value="8090">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap">
+        <button class="primary" id="btnStart" onclick="startSandbox(this)">▶ 启动</button>
+        <button class="danger" id="btnStop" onclick="stopSandbox(this)">■ 停止</button>
+        <button onclick="openScience(this)">打开 Science ↗</button>
+      </div>
+    </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer">
+        <input type="checkbox" id="sbOpen" style="width:auto" checked> 启动后自动打开浏览器
+      </label>
+    </div>
+    <div class="msg" id="sbMsg"></div>
+    <div class="hint" style="margin-top:10px">
+      启动会创建独立的虚拟登录与数据目录（与真实 <code>~/.claude-science</code> 完全隔离），
+      <b>不会触碰</b>你真实的登录态。首次启动需 30~90 秒装分析环境。
+    </div>
+    <div class="hint" style="margin-top:8px;color:var(--warn)">
+      ⚠ 登录链接是<b>一次性密码，3 分钟即失效</b>（Science 官方设计）。
+      所以这里不显示固定链接 —— 每次点「打开 Science」都会现取一条新的。
+      已打开的标签页会一直保持登录，直到 daemon 重启。
+    </div>
+  </div>
+
+  <!-- 新增 / 编辑 -->
+  <div class="card">
+    <h2 id="formTitle">＋ 新增第三方模型配置</h2>
+    <div class="gridwrap">
+    <div class="grid g3">
+      <div>
+        <label>配置名称</label>
+        <input id="fName" placeholder="如 ds-pro" autocomplete="off">
+      </div>
+      <div>
+        <label>类型</label>
+        <select id="fKind"></select>
+      </div>
+      <div>
+        <label>默认模型</label>
+        <input id="fModel" placeholder="留空用模板默认" autocomplete="off">
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:14px">
+      <div>
+        <label>API Key<span class="hint" id="keyHint" style="display:inline;margin-left:6px"></span></label>
+        <input id="fKey" type="password" placeholder="sk-..." autocomplete="new-password">
+        <div class="hint" id="keyTip">编辑时留空表示沿用原 Key</div>
+      </div>
+      <div>
+        <label>上游地址 base_url</label>
+        <input id="fBase" placeholder="https://api.deepseek.com/anthropic" autocomplete="off">
+        <div class="hint">选择类型后自动填入，可手工改</div>
+      </div>
+    </div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="primary" onclick="saveProvider(this)">保存</button>
+      <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer">
+        <input type="checkbox" id="fCurrent" style="width:auto"> 保存后立即切换为当前
+      </label>
+      <button onclick="resetForm()">清空</button>
+    </div>
+    <div class="msg" id="formMsg"></div>
+  </div>
+
+  <!-- 列表 -->
+  <div class="card">
+    <h2>已配置的上游<span class="tag" id="cnt"></span></h2>
+    <div class="msg err" id="bindMsg" style="display:none"></div>
+    <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th>状态</th><th>名称</th><th>类型</th><th>上游模型</th>
+        <th>Key</th><th>端点</th><th style="width:250px">操作</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    </div>
+    <div class="msg" id="listMsg"></div>
+  </div>
+
+  <!-- 端口设置 -->
+  <div class="card">
+    <h2>端口与运行时</h2>
+    <div class="grid g2">
+      <div>
+        <label>代理端口</label>
+        <input id="sProxy" type="number">
+      </div>
+      <div>
+        <label>沙箱端口</label>
+        <input id="sSandbox" type="number">
+      </div>
+    </div>
+    <label style="margin-top:14px">启动时打开浏览器</label>
+    <select id="sBrowser">
+      <option value="true">是</option><option value="false">否</option>
+    </select>
+    <div class="row" style="margin-top:14px">
+      <button onclick="saveSettings(this, 'setMsg2')">保存设置</button>
+    </div>
+    <div class="msg" id="setMsg2"></div>
+    <div class="hint" style="margin-top:12px">
+      改代理端口后需重启：先运行 <code>csx stop</code>，再运行 <code>csx start</code>
+    </div>
+  </div>
+   </div><!-- /col左 -->
+
+   <div class="col">
+  <!-- 文件访问权限 -->
+  <div class="card">
+    <h2>文件访问权限</h2>
+    <div class="hint" style="margin:-4px 0 12px">
+      控制 Claude 能看到你本机的哪些文件。开启沙箱时它只看得到沙箱目录；
+      要读你的项目，在下方「允许访问的本机文件夹」里登记。
+    </div>
+    <label>安全沙箱</label>
+    <select id="sSbx">
+      <option value="true">启用（推荐，Claude 看不到你的真实文件）</option>
+      <option value="false">关闭（Claude 可直接读写本机文件，不再弹审批）</option>
+    </select>
+    <div class="hint" id="sSbxTip"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="primary" onclick="saveSettings(this)">保存设置</button>
+    </div>
+    <div class="msg" id="setMsg"></div>
+    <div class="hint" style="margin-top:12px">
+      关闭沙箱后 Claude 可读写<b>整个用户目录</b>；虚拟登录仍写在沙箱
+      （<span class="mono" id="authDirHint"></span>），不会污染真实登录态。<br>
+      改沙箱开关需<b>先停止再启动</b>沙箱才生效；授权文件夹立即生效。
+    </div>
+  </div>
+
+  <!-- 允许访问的本机文件夹（host grants） -->
+  <div class="card">
+    <h2>允许访问的本机文件夹<span class="tag" id="grantCount">0</span></h2>
+    <div class="hint" style="margin-bottom:12px">
+      Claude 的<b>每个对话</b>都在它自己新建的<b>沙箱工作区</b>里运行
+      （<span class="mono">orgs/&lt;org&gt;/workspaces/&lt;uuid&gt;/</span>），
+      默认<b>看不见</b>你本机的项目文件夹。把目录登记到这里，
+      对话里的 Claude 就能用绝对路径直接读写它。
+    </div>
+    <div class="msg" id="grantMode" style="margin-bottom:12px"></div>
+    <input id="gPath" placeholder="绝对路径，如 D:\Paper 或 /home/user/project">
+    <div class="row" style="margin-top:8px">
+      <select id="gMode" style="flex:0 0 110px">
+        <option value="rw">可读写</option>
+        <option value="ro">只读</option>
+      </select>
+      <button class="primary" onclick="addGrant(this)">授权文件夹</button>
+      <button onclick="browseGrant()">浏览…</button>
+    </div>
+    <div id="grantList" style="margin-top:14px"></div>
+    <div class="msg" id="grantMsg"></div>
+    <details class="hint" style="margin-top:10px">
+      <summary style="cursor:pointer">使用说明：在对话里怎么用、只读与可读写的区别</summary>
+      <div style="margin-top:8px">
+        daemon 视角的 HOME：<span class="mono" id="grantHome">—</span><br>
+        <b>在对话里怎么用</b>：直接跟Claude 说
+        「读一下 <span class="mono">D:\Paper\xxx</span>」即可 ——
+        Science 内置了 <span class="mono">list_host_grants</span> /
+        <span class="mono">request_host_access</span> 两个工具，它会先查已有授权，
+        没有就弹窗向你申请（可选只读或可读写）。你在这里预先授权，
+        就是为了让它不用每次都问。<br>
+        「只读」适合放参考代码/数据；「可读写」让Claude 能直接改文件。
+        撤销授权只影响 Science 的可选范围，<b>不会删除任何文件</b>。
+      </div>
+    </details>
+  </div>
+
+  <!-- 网络出口 -->
+  <div class="card">
+    <h2>网络出口</h2>
+    <details>
+      <summary style="cursor:pointer;font-size:12px;color:var(--dim)">
+        代理隧道全部放行；Science 常用出口（点击展开）
+      </summary>
+      <div class="hint" style="margin:8px 0 6px">
+        代理的 CONNECT 隧道<b>全部放行</b>（不做白名单限制），沙箱内的分析环境
+        可正常访问包索引与文献 API。下面列出的是 Science 常用出口，仅供参考：
+      </div>
+      <div id="domains" class="mono" style="color:var(--dim);line-height:2"></div>
+    </details>
+  </div>
+   </div><!-- /col右 -->
+  </div><!-- /cols -->
+</main>
+
+<footer>
+  API Key 只写入本机 <span id="cfgPath" class="mono"></span>，页面与日志中仅显示末四位掩码。
+</footer>
+
+<script>
+let TEMPLATES = [], EDITING = null;
+
+const $ = id => document.getElementById(id);
+const token = () => localStorage.getItem('csx_admin') || '';
+
+/* ---------- 主题：跟随系统 / 亮 / 暗 ---------- */
+const THEME_KEY = 'csx_theme';
+const THEME_ORDER = ['auto', 'light', 'dark'];
+const THEME_LABEL = { auto: '主题：自动', light: '主题：亮', dark: '主题：暗' };
+const THEME_MEDIA = window.matchMedia('(prefers-color-scheme: light)');
+let THEME = 'auto';
+try { THEME = localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) { /* ignore */ }
+if (!THEME_ORDER.includes(THEME)) THEME = 'auto';
+
+function applyTheme() {
+  const light = THEME === 'auto' ? THEME_MEDIA.matches : THEME === 'light';
+  document.documentElement.dataset.theme = light ? 'light' : 'dark';
+  const b = $('themeBtn');
+  if (!b) return;
+  b.textContent = THEME_LABEL[THEME];
+  b.title = '当前：' + THEME_LABEL[THEME]
+    + (THEME === 'auto' ? '（跟随系统）' : '') + '，点击切换';
+}
+function cycleTheme() {
+  THEME = THEME_ORDER[(THEME_ORDER.indexOf(THEME) + 1) % THEME_ORDER.length];
+  try { localStorage.setItem(THEME_KEY, THEME); } catch (e) { /* ignore */ }
+  applyTheme();
+}
+THEME_MEDIA.addEventListener('change', () => { if (THEME === 'auto') applyTheme(); });
+applyTheme();
+
+async function api(path, body) {
+  const opt = { headers: { 'x-csx-admin': token() } };
+  if (body) {
+    opt.method = 'POST';
+    opt.headers['Content-Type'] = 'application/json';
+    opt.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, opt);
+  return r.json();
+}
+
+function toast(id, text, ok) {
+  const el = $(id);
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  el.textContent = text;
+  if (ok) setTimeout(() => el.className = 'msg', 4000);
+}
+
+/* 轮询期间显示状态用的常驻提示：不自动隐藏、不参与 toast 计时，
+   否则 1.5s 一次的轮询会不停把提示条重建再隐藏 —— 表现为整块闪烁。*/
+function setNotice(id, text, kind) {
+  const el = $(id);
+  const cls = 'msg' + (kind ? ' ' + kind : '');
+  // sticky 消息在 6 秒内优先显示，避免用户刚点的操作立刻被轮询刷掉
+  if (el.dataset.keep === '1') {
+    const at = Number(el.dataset.at || 0);
+    if (Date.now() - at < 6000) return;
+    el.dataset.keep = '0';
+  }
+  if (!text) {
+    el.className = 'msg';
+    el.textContent = '';
+    return;
+  }
+  if (el.textContent === text && el.className === cls) return; // 无变化不碰 DOM
+  el.className = cls;
+  el.textContent = text;
+}
+
+function clearNotice(id) {
+  const el = $(id);
+  el.dataset.keep = '0';
+  el.className = 'msg';
+  el.textContent = '';
+}
+
+/* 标记一条"用户主动操作"的消息，轮询不得覆盖 */
+function sticky(id, text, ok) {
+  const el = $(id);
+  el.dataset.keep = '1';
+  // 记时间戳：轮询只在 sticky 超过 6 秒后才接管，保证错误信息能被
+  // 后续状态更新替换，而不是永久挡住真实状态
+  el.dataset.at = String(Date.now());
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  el.textContent = text;
+}
+
+/* 按钮 loading 态：切换/校验要打真实上游，可能耗时数秒 */
+async function withBusy(btn, label, fn) {
+  const old = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> ' + label;
+  try {
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = old;
+  }
+}
+
+async function init() {
+  // 首次访问用 URL 上的 admin token 记住（由 csx panel 命令生成）
+  const q = new URLSearchParams(location.search);
+  if (q.get('token')) {
+    localStorage.setItem('csx_admin', q.get('token'));
+    history.replaceState({}, '', location.pathname);
+  }
+  const t = await api('/__admin/templates');
+  if (!t.ok) {
+    document.body.innerHTML =
+      '<main><div class="card"><h2>无法连接代理</h2>' +
+      '<p>请先运行 <code>csx start</code> 启动代理与沙箱。</p></div></main>';
+    return;
+  }
+  TEMPLATES = t.kinds;
+  $('fKind').innerHTML = TEMPLATES.map(x =>
+    `<option value="${x.kind}">${x.display}</option>`).join('');
+  $('fKind').onchange = onKindChange;
+  onKindChange();
+  refresh();
+  loadGrants();
+  setInterval(refresh, 5000);
+}
+
+function onKindChange() {
+  const t = TEMPLATES.find(x => x.kind === $('fKind').value);
+  if (!t) return;
+  if (!$('fBase').value || TEMPLATES.some(y => y.base_url === $('fBase').value))
+    $('fBase').value = t.base_url;
+  if (!$('fModel').value) $('fModel').value = t.default_model;
+  $('keyHint').textContent = t.key_hint || '';
+}
+
+/* ---------- 沙箱一键启停 ---------- */
+let SB_TIMER = null;
+
+async function pollSandbox() {
+  const d = await api('/__admin/sandbox').catch(() => null);
+  if (!d || !d.ok) return;
+  const t = d.task || {};
+  const running = d.running;
+  const busy = t.state === 'running' || t.state === 'stopping';
+
+  const label = { idle: '未运行', running: '启动中', ready: '运行中',
+                  failed: '失败', stopping: '停止中' }[t.state] || '—';
+  const stateText = d.detail ? label + '（' + d.detail + '）' : label;
+  // 去重：内容没变就不碰 DOM，避免每 1.5s 重建造成抖动
+  if ($('sbState').textContent !== stateText) $('sbState').textContent = stateText;
+
+  $('btnStart').disabled = busy || running;
+  $('btnStop').disabled = busy || !running;
+  // 链接只在"确实可用"时提示；不把URL 渲染成可点元素 —— nonce 是一次性的，
+  // 展示出来反而诱导用户点旧链接。真正打开由 openScience() 现取。
+  const ready = running && !!d.url;
+  $('btnStart').textContent = busy && t.state === 'running'
+    ? '启动中…' : (running ? '已在运行' : '▶ 启动');
+
+  if (t.state === 'failed' && t.detail)
+    setNotice('sbMsg', '✗ ' + t.detail, 'err');
+  else if (t.state === 'ready')
+    setNotice('sbMsg', '✓ ' + (t.detail || '已就绪'), 'ok');
+  else if (t.state === 'running')
+    setNotice('sbMsg', '⟳ ' + (t.detail || '启动中…'), 'ok');
+  else if (t.state === 'stopping')
+    setNotice('sbMsg', '⟳ ' + (t.detail || '停止中…'), 'ok');
+  else if (t.state === 'idle' && t.detail)
+    setNotice('sbMsg', t.detail, 'err');
+}
+
+/* 打开 Science：走代理的中转页，自动跳过 Sign in。
+   直接开 nonce 链接没用 —— 它的落地页只是一个需要**点击**的表单
+   （id="signin-form"），window.open 只会停在 "Sign in"。中转页在服务端
+   预登录后把 cookie 注入浏览器，再 303 跳到真正的首页。
+
+   注意：**必须**先同步开一个空白标签页占位，再去await 异步检查。
+   若等到 await 之后才 window.open，浏览器会认为已脱离用户手势而被
+   弹窗拦截（实测 Playwright 下 window.open 直接返回 null）。*/
+let _openWin = null;
+async function openScience(btn) {
+  const t = encodeURIComponent(token());
+  _openWin = window.open('', '_blank');
+  await withBusy(btn, '登录中', async () => {
+    sticky('sbMsg', '⟳ 正在自动登录 Claude Science ...', 'ok');
+    if (!_openWin) {
+      return sticky('sbMsg',
+        '✗ 浏览器拦截了新标签页，请允许本页面弹出窗口后重试', false);
+    }
+    _openWin.document.write(
+      '<title>正在登录…</title><body style="background:#1A1A2E;color:#8fd;'
+      + 'font:15px system-ui;display:flex;align-items:center;'
+      + 'justify-content:center;height:100vh;margin:0">'
+      + '正在自动登录 Claude Science …</body>');
+    const d = await api('/__admin/sandbox').catch(() => null);
+    if (!d || !d.ok) return sticky('sbMsg', '✗ 无法连接代理', false);
+    if (!d.running) {
+      _openWin.close(); _openWin = null;
+      return sticky('sbMsg', '✗ Claude Science 未运行，请先点「启动」', false);
+    }
+    _openWin.location.replace('/__admin/science-open?token=' + t);
+    sticky('sbMsg', '✓ 已打开，正在自动登录 ...', true);
+  });
+}
+
+async function startSandbox(btn) {
+  await withBusy(btn, '提交中', async () => {
+    sticky('sbMsg', '⟳ 正在提交启动请求 ...', 'ok');
+    const r = await api('/__admin/sandbox/start', {
+      port: Number($('sbPort').value),
+      open_browser: $('sbOpen').checked,
+    });
+    if (!r.ok) sticky('sbMsg', '✗ ' + (r.detail || '启动请求被拒'), false);
+    else sticky('sbMsg', '⟳ 启动中，通常需 30~90 秒，正在等待就绪 ...', 'ok');
+  });
+  pollSandbox();
+  if (!SB_TIMER) SB_TIMER = setInterval(pollSandbox, 1500);
+}
+
+async function stopSandbox(btn) {
+  if (!confirm('确定停止沙箱 Claude Science？正在进行中的会话会中断。')) return;
+  await withBusy(btn, '提交中', async () => {
+    sticky('sbMsg', '⟳ 正在提交停止请求 ...', 'ok');
+    const r = await api('/__admin/sandbox/stop', {});
+    if (!r.ok) sticky('sbMsg', '✗ ' + (r.detail || '停止请求被拒'), false);
+  });
+  pollSandbox();
+}
+
+async function refresh() {
+  const s = await api('/__admin/status').catch(() => null);
+  $('bProxy').textContent = '代理 127.0.0.1:' + ($('sProxy').value || '?');
+  $('bProxy').className = 'badge' + (s && s.running ? ' on' : '');
+  $('bUp').textContent = s && s.running
+    ? '运行 ' + Math.floor((s.uptime_s || 0) / 60) + ' 分钟' : '未运行';
+  $('bUp').className = 'badge' + (s && s.running ? ' on' : '');
+
+  const st = await api('/__admin/settings').catch(() => null);
+  if (st && st.ok) {
+    if (document.activeElement !== $('sProxy')) $('sProxy').value = st.settings.proxy_port;
+    if (document.activeElement !== $('sSandbox')) $('sSandbox').value = st.settings.sandbox_port;
+    if (document.activeElement !== $('sbPort')) $('sbPort').value = st.settings.sandbox_port;
+    // 安全沙箱开关
+    $('sSbx').value = String(st.settings.sandbox_enabled !== false);
+    $('sSbxTip').textContent = st.settings.sandbox_enabled === false
+      ? '当前：关闭。Claude 可直接读写你的真实文件'
+      : '当前：启用。Claude 只能看到沙箱目录，读你的文件需逐项批准';
+    $('authDirHint').textContent = st.sandbox_auth_dir || '';
+    $('sBrowser').value = String(st.settings.open_browser);
+    $('cfgPath').textContent = st.config_path;
+    $('bSandbox').textContent = st.sandbox_pid
+      ? '沙箱 ' + st.sandbox_port + ' (pid ' + st.sandbox_pid + ')' : '沙箱 未启动';
+    $('bSandbox').className = 'badge' + (st.sandbox_pid ? ' on' : '');
+    $('domains').textContent = (st.trusted_domains || []).join('   ·   ');
+  }
+
+  const d = await api('/__admin/providers').catch(() => null);
+  if (!d || !d.ok) return;
+  $('cnt').textContent = d.providers.length + ' 条';
+  $('rows').innerHTML = d.providers.map(p => {
+    const isCur = p.name === d.runtime_provider;
+    const isDef = p.name === d.current;
+    return `<tr class="${isCur ? 'cur' : ''}">
+      <td><span class="dot ${isCur ? 'on' : 'off'}"></span>${isCur ? '运行中' : '空闲'}</td>
+      <td><b>${esc(p.name)}</b>${isDef ? ' <span class="tag">默认</span>' : ''}</td>
+      <td>${esc(p.kind)}</td>
+      <td class="mono">${esc(p.model || '')}</td>
+      <td class="mono">${esc(p.key_masked)}</td>
+      <td class="mono" style="color:var(--dim)">${esc(p.base_url || '')}</td>
+      <td class="ops">
+        <button data-name="${esc(p.name)}" onclick="useProvider(this.dataset.name, this)" ${isCur ? 'disabled' : ''}>切换</button>
+        <button data-name="${esc(p.name)}" onclick="verifyProvider(this.dataset.name, this)">校验</button>
+        <button data-name="${esc(p.name)}" onclick="editProvider(this.dataset.name)">编辑</button>
+        <button class="danger" data-name="${esc(p.name)}" onclick="delProvider(this.dataset.name, this)">删</button>
+      </td></tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:var(--dim)">还没有配置，用上方表单添加一条。</td></tr>';
+
+  // 默认配置与运行态不一致时必须显式提醒：此时代理仍是空载，
+  // Science 的每条请求都会被 503 回绝，界面只表现为「temporarily unavailable」。
+  const def = d.providers.find(p => p.name === d.current);
+  const bindWarn = $('bindMsg');
+  if (def && d.current !== d.runtime_provider) {
+    bindWarn.style.display = '';
+    bindWarn.textContent = '⚠ 代理没有装载「' + d.current
+      + '」：Claude Science 的请求会被直接回绝。点该行的「切换」即可装载。';
+  } else {
+    bindWarn.style.display = 'none';
+  }
+
+  await pollSandbox();
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function saveProvider(btn) {
+  const body = {
+    name: $('fName').value.trim(),
+    kind: $('fKind').value,
+    key: $('fKey').value.trim(),
+    base_url: $('fBase').value.trim(),
+    model: $('fModel').value.trim(),
+    make_current: $('fCurrent').checked,
+  };
+  if (!body.name) return sticky('formMsg', '请填写配置名称', false);
+  if (!EDITING && !body.key) return sticky('formMsg', '请填写 API Key', false);
+  await withBusy(btn, '保存中', async () => {
+    const r = await api('/__admin/provider/save', body);
+    if (!r.ok) return sticky('formMsg', r.detail || '保存失败', false);
+    // 回显保存后的 Key 掩码 —— 用户改Key 最怕"以为存了其实没存"
+    sticky('formMsg',
+      `✓ 已${r.action === 'created' ? '新增' : '更新'} ${r.name}`
+      + `，当前 Key=${r.key_masked || '（未返回）'}`
+      + (r.reloaded ? '，运行中代理已热重载' : ''), true);
+    setTimeout(() => clearNotice('formMsg'), 6000);
+    resetForm();
+  });
+  refresh();
+}
+
+function resetForm() {
+  EDITING = null;
+  $('fName').value = ''; $('fKey').value = ''; $('fModel').value = '';
+  $('fCurrent').checked = false;
+  $('formTitle').textContent = '＋ 新增第三方模型配置';
+  $('keyTip').textContent = '编辑时留空表示沿用原 Key';
+  onKindChange();
+}
+
+async function editProvider(name) {
+  // 必须走 api()：裸 fetch 不带 x-csx-admin 头，管理端点会返 403，
+  // 之前就是这里静默失败 —— d.providers 是 undefined，.find() 抛异常，
+  // 表单看起来"点了没反应"
+  const d = await api('/__admin/providers').catch(() => null);
+  if (!d || !d.ok) {
+    sticky('listMsg', '✗ 读取配置失败：'
+      + (d && d.detail ? d.detail : '无法连接代理'), false);
+    return;
+  }
+  const p = (d.providers || []).find(x => x.name === name);
+  if (!p) {
+    sticky('listMsg', '✗ 找不到配置「' + name + '」', false);
+    return;
+  }
+  EDITING = name;
+  $('fName').value = p.name;
+  $('fKind').value = p.kind;
+  $('fBase').value = p.base_url || '';
+  $('fModel').value = p.model || '';
+  $('fKey').value = '';
+  $('keyTip').textContent = `当前 Key=${p.key_masked}，留空则不修改`;
+  $('fCurrent').checked = false;
+  $('formTitle').textContent = '✎ 编辑：' + p.name;
+  // 编辑态给明显提示，否则用户不知道已经切过来了
+  $('formMsg').className = 'msg ok';
+  $('formMsg').textContent = `正在编辑「${p.name}」：改完点「保存」生效，`
+    + 'Key 留空表示沿用原 Key';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function useProvider(name, btn) {
+  // 切换前要打真实上游校验 Key，可能耗时数秒 —— 必须给 loading 反馈
+  return withBusy(btn, '校验中', async () => {
+    setNotice('listMsg', '⟳ 正在校验 Key 并切换到 ' + name + ' ...', 'ok');
+    const r = await api('/__admin/switch', { provider: name });
+    if (r.ok) {
+      setNotice('listMsg', '✓ 已切换到 ' + name + '，进行中的会话下一条请求即生效', 'ok');
+      setTimeout(() => clearNotice('listMsg'), 5000);
+    } else {
+      setNotice('listMsg', '✗ 切换失败：' + (r.detail || '未知原因'), 'err');
+    }
+    refresh();
+  });
+}
+
+async function verifyProvider(name, btn) {
+  return withBusy(btn, '校验中', async () => {
+    setNotice('listMsg', '⟳ 正在校验 ' + name + ' ...', 'ok');
+    const r = await api('/__admin/verify', { provider: name });
+    const v = r.verify || {};
+    if (v.ok) {
+      setNotice('listMsg', '✓ ' + name + ' 校验通过' + (v.detail ? '：' + v.detail : ''), 'ok');
+    } else {
+      setNotice('listMsg', '✗ ' + name + ' 校验未通过：' + (v.detail || '未返回原因'), 'err');
+    }
+  });
+}
+
+async function delProvider(name, btn) {
+  if (!confirm(`确定删除配置「${name}」？`)) return;
+  await withBusy(btn, '删除中', async () => {
+    const r = await api('/__admin/provider/delete', { provider: name });
+    if (r.ok) {
+      sticky('listMsg', '✓ 已删除 ' + name, true);
+      setTimeout(() => clearNotice('listMsg'), 4000);
+    } else {
+      sticky('listMsg', '✗ 删除失败：' + (r.detail || '未知原因'), false);
+    }
+  });
+  refresh();
+}
+
+async function saveSettings(btn, msgId = 'setMsg') {
+  await withBusy(btn, '保存中', async () => {
+    const r = await api('/__admin/settings', {
+      settings: {
+        proxy_port: Number($('sProxy').value),
+        sandbox_port: Number($('sSandbox').value),
+        open_browser: $('sBrowser').value === 'true',
+        sandbox_enabled: $('sSbx').value === 'true',
+      }
+    });
+    if (!r.ok) {
+      sticky(msgId, '✗ ' + (r.detail || '保存失败'), false);
+      return;
+    }
+    sticky(msgId, '✓ ' + (r.detail || '已保存'), !r.restart_needed);
+    if (r.restart_needed) {
+      setTimeout(() => sticky(msgId,
+        '⚠ 设置已保存，但需重启沙箱才生效。点上方「■ 停止」后再「▶ 启动」。', false), 2600);
+    } else {
+      setTimeout(() => clearNotice(msgId), 4000);
+    }
+  });
+  refresh();
+}
+
+/* ---------- 宿主文件夹授权 ---------- */
+
+let GRANT_RETRY = 0;
+
+async function loadGrants() {
+  const r = await api('/__admin/host-grants');
+  const box = $('grantList');
+  if (!r.ok) {
+    // daemon 刚起来时登录链路还没就绪，会拿到 "无法获取登录 nonce"。
+    // 这类瞬时失败自动重试几次，别让用户以为功能坏了。
+    const transient = /nonce|未运行|ECONNREFUSED|无法获取/i.test(r.detail || '');
+    if (transient && GRANT_RETRY < 4) {
+      GRANT_RETRY++;
+      box.innerHTML = '<div class="hint">正在连接 Claude Science…</div>';
+      setTimeout(loadGrants, 2500 * GRANT_RETRY);
+      return;
+    }
+    box.innerHTML = '<div class="hint" style="color:var(--err)">✗ ' +
+      esc(r.detail || '读取授权列表失败') +
+      '（若刚启动 Claude Science，请点上方「刷新」）</div>';
+    $('grantHome').textContent = '—';
+    $('grantMode').textContent = '';
+    return;
+  }
+  GRANT_RETRY = 0;
+  $('grantHome').textContent = r.home || '—';
+  // 沙箱是否真在生效决定这套机制有没有意义，必须说清楚而不是假装成功
+  $('grantMode').innerHTML = r.sandboxActive
+    ? '<b>安全沙箱已启用</b>：Claude 只能看到 $HOME 与下面登记过的目录。' +
+      '在对话里说「读一下 D:\\Paper\\xxx」它就会直接访问。' +
+      '<br><span style="color:var(--dim)">注意：授权解决的是「能不能访问」；' +
+      '对话的落盘位置始终是它自己的 workspaces 目录，那是Science 界面侧的' +
+      '项目目录选择。</span>'
+    : '<b style="color:var(--warn)">安全沙箱已关闭</b>：Claude 本来就能' +
+      '读写整个本机文件系统，<b>不需要也无法登记授权</b>（daemon 会返回' +
+      '"no grant was needed"，列表恒为空）。目录访问已不受限。';
+  const gs = r.grants || [];
+  $('grantCount').textContent = gs.length;
+  if (!gs.length) {
+    box.innerHTML = r.sandboxActive
+      ? '<div class="hint">还没有授权任何文件夹。在上面填一个绝对路径，' +
+        '比如 <span class="mono">D:\\Paper</span>。</div>'
+      : '<div class="hint">列表为空是预期的 —— 沙箱关闭时没有授权概念。</div>';
+    return;
+  }
+  box.innerHTML = gs.map(g => `
+    <div style="border:1px solid var(--line);border-radius:8px;
+                padding:9px 11px;margin-bottom:8px;background:var(--panel)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="flex:1;min-width:0" class="mono"
+              title="${esc(g.hostPath)}">${esc(g.hostPath)}</span>
+        <span class="tag" style="color:${g.writable ? 'var(--warn)' : 'var(--dim)'}">${g.writable ? '可读写' : '只读'}</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button data-path="${esc(g.hostPath)}" onclick="delGrant(this.dataset.path, this)">撤销</button>
+      </div>
+    </div>`).join('');
+}
+
+async function addGrant(btn) {
+  const p = $('gPath').value.trim();
+  if (!p) {
+    sticky('grantMsg', '✗ 请先填写绝对路径', false);
+    return;
+  }
+  await withBusy(btn, '授权中', async () => {
+    const r = await api('/__admin/host-grant/add', { path: p, mode: $('gMode').value });
+    if (r.ok) {
+      // recorded=false 表示 daemon 认为无需记录（沙箱关闭），别谎报成功
+      sticky('grantMsg', (r.recorded === false ? 'ℹ ' : '✓ ') + (r.detail || '已授权'),
+        r.recorded !== false);
+      if (r.recorded !== false) $('gPath').value = '';
+      loadGrants();
+    } else {
+      sticky('grantMsg', '✗ ' + (r.detail || '授权失败'), false);
+    }
+  });
+}
+
+async function delGrant(p, btn) {
+  if (!confirm('撤销对「' + p + '」的授权？\n不会删除任何文件，只是让 Claude 看不到它。')) return;
+  await withBusy(btn, '撤销中', async () => {
+    const r = await api('/__admin/host-grant/remove', { path: p });
+    sticky('grantMsg', r.ok ? '✓ 已撤销' : '✗ ' + (r.detail || '撤销失败'), !!r.ok);
+    loadGrants();
+  });
+}
+
+async function browseGrant() {
+  const cur = $('gPath').value.trim();
+  const r = await api('/__admin/host-browse?path=' + encodeURIComponent(cur));
+  if (!r.ok) {
+    sticky('grantMsg', '✗ ' + (r.detail || '浏览失败')
+      + '（只能浏览已授权目录或其子目录）', false);
+    return;
+  }
+  const entries = r.entries || [];
+  if (!entries.length) {
+    sticky('grantMsg', '该目录为空：' + (r.path || '(HOME)'), true);
+    return;
+  }
+  const names = entries.slice(0, 40)
+    .map(e => e.name + (e.isDir ? '\\' : '')).join('   ');
+  const pick = prompt(
+    '目录：' + (r.path || '(HOME)') + '\n\n下面是内容（前 40 项，文件夹带 \\）：\n' +
+    names + '\n\n把要授权的路径粘贴到输入框，或直接取消用当前路径：',
+    r.path || '');
+  if (pick) $('gPath').value = pick.trim();
+}
+
+init();
+</script>
+</body>
+</html>

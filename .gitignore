@@ -1,0 +1,72 @@
+# ==========================================================================
+# CSswitch-Win .gitignore
+#
+# 最关键的一条：绝不要提交 CSswitch 的运行时数据。
+# 其中 config.json 含【明文 API Key】，sandbox/ 含虚拟登录凭证。
+# 即使你用 CSSWITCH_HOME 把数据目录指到了仓库内，一条 git add . 就可能
+# 把密钥永久写进 git 历史（后续删除文件也无法彻底清除）。
+# ==========================================================================
+
+# ---- CSwitch 运行时数据（含明文 API Key，最高优先级）----
+config.json
+state.json
+*.log
+encryption.key
+.oauth-tokens/
+sandbox/
+csswitch-home/
+# 测试与调试可能落在仓库内的临时数据目录
+tmp/
+tmp*/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# ---- 虚拟环境 ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- 便携版运行时与数据（体积大 / 含密钥，不入库）----
+# runtime/ 内是随包分发的 Python 与 Claude Science 可执行文件（约 236MB），
+# 由 便携启动.bat 自动使用；要用便携版请整目录拷贝，不要靠 git 拉取。
+runtime/
+# 便携模式的配置 / 沙箱 / 日志根目录（含明文 API Key，与上面同理）
+.data/
+
+# ---- 测试与缓存 ----
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+
+# ---- 编辑器 / IDE ----
+.vscode/
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ---- 本地配置（不要提交个人端口 / 路径设置）----
+config.local.json
+.env
